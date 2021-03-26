@@ -1,128 +1,107 @@
+import _thread
 import os
 import socket
-import sys
-from threading import Thread
-import time
+import struct
 
-global list_admin_chats
-list_admin_chats = list()
+import random
+
+name = ""
+rang = ""
+message = ""
+chat_identifier = ""
+group_name = ""
+multicast_group = ("233.2.29.34", 0)
+global mysocket
+waiting = ""
 
 
-class group_chat:
-    def __init__(self, name, port, is_blocked, is_admin):
-        self.name = name
-        self.port = port
-        self.is_blocked = is_blocked
-        self.is_admin = is_admin
-
-def GetUdpChatMessage():
-    global name
-    global broadcastSocket
-    global current_online
-    global port
-    global list_admin_chats
-
+def recieveMessage():
+    global recv_message
+    global addres
+    global mysocket
     while True:
-        recv_message = broadcastSocket.recv(1024)  # получаем 1024 байта от пира
-        recv_string_message = str(recv_message.decode('utf-8'))  # переводим сообщение в строку
-        if recv_string_message.find(':') != -1:
-            mess = recv_string_message.split(':')
-            if mess[1].find('result') != -1:
-                message = mess[1].split(' ')
-                if mess[1].find('OK') != -1:
-                    for i in list_admin_chats:
-                        if i.port == int(mess[2]) and i.name == message[0]:
-                            i.is_blocked = 0
-                else:
-                    for i in list_admin_chats:
-                        if i.port == int(mess[2]) and i.name == message[0]:
-                            i.is_blocked = 1
+        recv_message = mysocket.recv(1024)
+        addres = mysocket.recv(1024)
+        message = str(recv_message.decode('utf-8'))
+
+        if rang == "Admin":
+            print("<", message.split('\n')[0], ">", ": ", message.split('\n')[1], sep="")
+
+            if message.find != "wait":
+                mysocket.sendto(message.encode("utf-8"), multicast_group)
             else:
-                mark = False
-                for i in list_admin_chats:
-                    print(i.name)
-                    if i.port == int(mess[2]) and i.is_blocked == 0 and i.name == mess[0]:
-                        mark = True
-
-                if mark is True:
-                    message = mess[0] + ': ' + mess[1]
-                    print('\r%s\n' % message, end='')  # выводим в консоль сообщение от пира
-
-        elif recv_string_message.find('/') != -1:
-            mess = recv_string_message.split('/')
-            if mess[1] == 'You are admin':
-                person = group_chat(mess[0], int(mess[2]), 0, 1)
-                list_admin_chats.append(person)
-                print(mess[1])
-            elif mess[1] == 'i want to join':
-                person = group_chat(mess[0], int(mess[2]), 1, 0)
-                list_admin_chats.append(person)
-                if name != mess[0]:
-                    for i in list_admin_chats:
-                        if i.port == int(mess[2]) and i.is_admin == 1 and name == i.name:
-                            message = mess[0] + ' want to join!'
-                            message = message + '\nEnter his login and your solution with the word "result" (example "Ivan result OK"): '
-                            print(message)
-
-
-# функция, отвечающая за отправку сообщений всем пирам
-def SendBroadcastMessageForChat():
-    global name
-    global sendSocket
-    global port
-    sendSocket.setblocking(False)  # не блокируем сокет, с которого происходит отправка широковещательных сообщений
-    while True:  # бесконечный цикл
-        data = input()
-        if data == 'Выход()':
-            close_message = '!@#' + name  # формируем сообщение, регламентирующее закрытие
-            sendSocket.sendto(close_message.encode('utf-8'),
-                              ('255.255.255.255', port))  # отправляем сообщение всем пирам в подсети
-            os._exit(1)  # выходим из программы
-        elif data != '' and data != 'Выход()':
-            send_message = name + ':' + data + ':' + str(port)
-            sendSocket.sendto(send_message.encode('utf-8'),
-                              ('255.255.255.255', port))
+                print("".join(["Add user: ", message.split('\n')[0], "? [YES/NO] "]))
+                waiting = f'{rang} \n{message} \n {addres}'
         else:
-            print('Напишите сначала сообщение!')
+            if name != message.split('\n')[0]:
+                print("<", message.split('\n')[0], ">", ": ", message.split('\n')[1], sep="")
 
 
-def SendBroadcastOnlineStatus():
-    global name
-    global sendSocket
-    global port
-    sendSocket.setblocking(False)  # не блокируем сокет, с которого происходит отправка широковещательных соообщений
+def sendMessage():
+    global check_string
+    global state
+    global recv_message
+    global addres
+    global chat_identifier
+    global mysocket
+    global rang
+    global waiting
+    global passing
+
     while True:
-        time.sleep(1)
-        sendSocket.sendto(name.encode('utf-8'), ('255.255.255.255', port))  # отправка имени пира, пока он в сети
+        try:
+            message = input()
+            passing = f'{message} \n{name}'
+            chat_identifier = int(input("Enter identifier: "))
+            mysocket.sendto(passing.encode("utf-8"), ("", chat_identifier))
+            recv_message = mysocket.recv(1024)
+            addres = mysocket.recv(1024)
+            if rang == "Admin":
+                if waiting:
+                    message, addres = (
+                        "message",
+                        "addres",
+                    )
 
+                    state = False
+                    check_string = f'{name} \n{message} \n{multicast_group[-1]}' \
+                                   f'\n{group_name} \n{state}'
+
+                    if message == "NO":
+                        mysocket.sendto(
+                            check_string.encode("utf-8"), addres
+                        )
+                    else:
+                        print(f"User {message.split[0]} join chat!")
+                        state = True
+                        mysocket.sendto(
+                            check_string.encode("utf-8"), addres
+                        )
+
+                    waiting = ''
+                else:
+                    mysocket.sendto(check_string.encode("utf-8"), multicast_group)
+            else:
+                mysocket.sendto(
+                    passing.encode("utf-8"), ("", chat_identifier)
+                )
+        except Exception:
+            continue
 
 # главная функция
 def main():
-    global list_admin_chats
-
-    global broadcastSocket
-    # сокет для реализации получения сообщений от пиров
-    broadcastSocket = socket.socket(socket.AF_INET,
-                                    socket.SOCK_DGRAM)  # инициализация сокета для работы с IPv4-адресами, используя
-    # протокол UDP
-    broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,
-                               1)  # присваиваем параметр SO_REUSEADDR на уровне библиотеки, SO_REUSEADDR - указывает
-    # на то, что сразу несколько приложений могут слушать сокет
-    broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST,
-                               1)  # присваиваем параметр SO_BROADCAST на уровне библиотеки, SO_BROADCAST - указывает
-    # на то, что пакеты будут широковещательные
-    # broadcastSocket.bind(('0.0.0.0', 8080))  # биндимся к адресу '0.0.0.0', чтобы прослушивать все интерфейсы
-    global sendSocket
-    # сокет для реализации отправки сообщений пирам
-    sendSocket = socket.socket(socket.AF_INET,
-                               socket.SOCK_DGRAM)  # инициализация сокета для работы с IPv4-адресами, используя
-    # протокол UDP
-    sendSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST,
-                          1)  # присваиваем параметр SO_BROADCAST на уровне библиотеки, SO_BROADCAST - указывает на
-    # то, что пакеты будут широковещательные
+    global mysocket
+    global multicast_group
+    global group_name
+    global chat_identifier
+    global passing
+    global data
+    global addres
+    global rang
+    mysocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     print('*************************************************')
-    print('*  Добро пожаловать в наш групповой-чат!        *')
+    print('*  You are welcome in our group_chat!!!        *')
     print('*  Чтобы выйти, отправьте сообщение: Выход()    *')
 
     print('*************************************************')
@@ -131,55 +110,55 @@ def main():
     name = ''
     while True:
         if not name:
-            name = input('Ваше имя: ')
+            name = input('Enter name: ')
             if not name:
-                print('Введите непустое имя!')
+                print('Enter not empty name!')
             else:
                 break
 
     print('Choose option')
     print('1. Create chat')
     print('2. Join chat')
+    print('3. Exit')
     while True:
         option = int(input())
         if option == 1:
-            global port
-            port = int(input('Введите порт'))
-            broadcastSocket.bind(('0.0.0.0', port))
-            admin = name + '/' + 'You are admin' + '/' + str(port)
-            sendSocket.sendto(admin.encode('utf-8'), ('255.255.255.255', port))
-            sendSocket.setblocking(True)
-            break
+            rang = "Admin"
+            ttl = struct.pack("b", 1)
+            mysocket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+            multicast_group = (multicast_group[0], random.randint(10000, 20000))
+            group_name = input("Enter your group name: ")
+            mysocket.sendto("".encode("utf-8"), multicast_group)
+            print("Identifier: ", mysocket.getsockname()[-1])
         elif option == 2:
-            port = int(input('Введите порт'))
-            broadcastSocket.bind(('0.0.0.0', port))
-            mess = name + '/' + 'i want to join' + '/' + str(port)
-            sendSocket.sendto(mess.encode('utf-8'), ('255.255.255.255', port))
-            break
+            rang = "User"
+            accept = f'{name} \n wait \n can i join to your group'
+            chat_identifier = int(input("Enter identifier: "))
+            mysocket.sendto(accept.encode("utf-8"), ("", chat_identifier))
+            data, addres = str(mysocket.recv(1024))
+            if data.find(''):
+                print(f"You join {group_name} chat")
+                mysocket.close()
+                multicast_group = (multicast_group[0], multicast_group[-1])
+                mysocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                mysocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                mysocket.bind(multicast_group)
+                mreq = struct.pack(
+                    "4sL", socket.inet_aton(multicast_group[0]), socket.INADDR_ANY
+                )
+                mysocket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            else:
+                print('You can not join ')
+        elif option == 3:
+            os._exit(1)
         else:
             print('make correct choice')
 
-    print('*************************************************')
+        _thread.start_new_thread(recieveMessage, ())
 
-    global recvThread
-    recvThread = Thread(target=GetUdpChatMessage)  # поток для получения сообщений от пиров
+        sendMessage()
 
-    global sendMsgThread
-    sendMsgThread = Thread(target=SendBroadcastMessageForChat)  # поток для отправки сообщений от пиров
-
-    global current_online
-    current_online = []  # список имя пиров, которые находятся в сети
-
-    global sendOnlineThread
-    sendOnlineThread = Thread(target=SendBroadcastOnlineStatus)  # поток для отправки статусов, что пир в сети
-
-    recvThread.start()  # запуск потока для получения сообщений от пиров
-    sendMsgThread.start()  # запуск потока для отправки сообщений всем пирам
-    sendOnlineThread.start()  # запуск поток для отправки статусов, что пир в сети
-
-    recvThread.join()  # блокируем поток, в котором осуществляется вызов до тех пор, пока recvThread не будет завершён
-    sendMsgThread.join()  # блокируем поток, в котором осуществляется вызов до тех пор, пока sendMsgThread не будет завершён
-    sendOnlineThread.join()  # блокируем поток, в котором осуществляется вызов до тех пор, пока sendOnlineThread не будет завершён
+        print('*************************************************')
 
 
 if __name__ == '__main__':
